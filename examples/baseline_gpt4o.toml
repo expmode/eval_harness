@@ -1,0 +1,12 @@
+dataset_path = "EU_alert_working_copy/test/test.jsonl"
+output_dir = "eval"
+run_name = "baseline_gpt4o"
+verified_only = false
+sampling_seed = 0
+alias_path = "eval_harness/examples/aliases.toml"
+model_alias = "gpt-4o-baseline"
+judge_alias = "gpt-4o-mini-judge"
+
+[notes]
+owner = "research"
+purpose = "baseline rerun config"

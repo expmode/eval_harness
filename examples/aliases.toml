@@ -1,0 +1,43 @@
+[models.gpt-4o-baseline]
+name = "gpt-4o-baseline"
+backend = "api"
+provider = "openai"
+model = "gpt-4o"
+api_key = "$OPENAI_API_KEY"
+temperature = 0.0
+top_p = 1.0
+max_tokens = 512
+
+[models.llama-3.1-8b-local]
+name = "llama-3.1-8b-local"
+backend = "vllm"
+mode = "server"
+model = "meta-llama/Llama-3.1-8B-Instruct"
+base_url = "http://localhost:8000/v1"
+api_key = "dummy"
+temperature = 0.0
+top_p = 1.0
+max_tokens = 512
+
+[judges.qwen-judge-v1]
+name = "qwen-judge-v1"
+backend = "vllm"
+mode = "server"
+model = "Qwen/Qwen2.5-7B-Instruct"
+base_url = "http://localhost:8001/v1"
+api_key = "dummy"
+prompt_template_path = "eval_harness/prompts/judge_refusal.txt"
+temperature = 0.0
+top_p = 1.0
+max_tokens = 512
+
+[judges.gpt-4o-mini-judge]
+name = "gpt-4o-mini-judge"
+backend = "api"
+provider = "openai"
+model = "gpt-4o-mini"
+api_key = "$OPENAI_API_KEY"
+prompt_template_path = "eval_harness/prompts/judge_refusal.txt"
+temperature = 0.0
+top_p = 1.0
+max_tokens = 512
