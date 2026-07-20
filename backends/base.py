@@ -20,7 +20,7 @@ class InferenceBackend(ABC):
         model: str,
         api_key: str | None = None,
         base_url: str | None = None,
-        max_tokens: int = 512,
+        max_tokens: int = 2048,
         temperature: float = 0.0,
         top_p: float = 1.0,
         timeout_seconds: float = 60.0,

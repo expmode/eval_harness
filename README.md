@@ -16,8 +16,8 @@ Evaluation scaffold for:
 - `--backend vllm --mode server`
 
 ### What the vLLM modes mean
+- `--backend vllm` or `--backend vllm --mode server`: call a **separately running vLLM HTTP server** over an OpenAI-compatible API. This is now the default and recommended path.
 - `--backend vllm --mode local`: load and run vLLM **inside the eval Python process**.
-- `--backend vllm --mode server`: call a **separately running vLLM HTTP server** over an OpenAI-compatible API.
 
 Legacy backend labels (`openai`, `anthropic`, `together`, `openai_compatible`, `vllm`, `vllm_openai`) are still accepted for compatibility.
 
@@ -82,7 +82,118 @@ Minimum runtime dependencies depend on backend choice:
 
 - `openai` package for `--backend api --provider openai|together|openrouter`
 - `anthropic` package for `--backend api --provider anthropic`
-- `vllm` package for `--backend vllm --mode local`
+- `vllm` package for `--backend vllm --mode local` or for running the helper vLLM server scripts
+
+## vLLM server workflow
+
+Server mode is now the default for `--backend vllm` because it is the most reproducible operational path.
+
+Helper scripts are provided:
+
+- `eval_harness/scripts/start_vllm_model_server.sh`
+- `eval_harness/scripts/start_vllm_judge_server.sh`
+
+These scripts intentionally borrow a few research-integrity and scalability defaults from the larger `vllm_script.sh` pattern, without taking on its full Docker/tool-calling complexity:
+
+- explicit `--served-model-name` support for cleaner artifact/accounting consistency
+- forced `temperature=0.0` at the server layer for reproducibility
+- tunable tensor/data parallel settings for scaling experiments
+- tunable GPU memory utilization and attention backend
+- consistent timestamped log files under `eval/logs/`
+- explicit HF cache path control via environment variables
+- optional request logging for audit/debug traces
+- prefix caching disabled by default to reduce hidden serving-state variability across research runs
+
+### Start a model-generation server
+
+```bash
+bash eval_harness/scripts/start_vllm_model_server.sh
+```
+
+Optional overrides:
+
+```bash
+VLLM_PORT=8000 \
+VLLM_MODEL=meta-llama/Llama-3.1-8B-Instruct \
+VLLM_TP_SIZE=2 \
+VLLM_GPU_MEM_UTIL=0.9 \
+bash eval_harness/scripts/start_vllm_model_server.sh
+```
+
+Or pass the model name as the first positional argument:
+
+```bash
+bash eval_harness/scripts/start_vllm_model_server.sh meta-llama/Llama-3.1-8B-Instruct
+```
+
+### Start a judge server
+
+```bash
+bash eval_harness/scripts/start_vllm_judge_server.sh
+```
+
+Optional overrides:
+
+```bash
+VLLM_JUDGE_PORT=8001 \
+VLLM_JUDGE_MODEL=Qwen/Qwen2.5-7B-Instruct \
+VLLM_JUDGE_TP_SIZE=2 \
+VLLM_JUDGE_GPU_MEM_UTIL=0.9 \
+bash eval_harness/scripts/start_vllm_judge_server.sh
+```
+
+### Recommended high-value script knobs
+
+For model serving:
+
+- `VLLM_SERVED_MODEL_NAME`: stable API-visible name for cleaner manifests and comparisons
+- `VLLM_TP_SIZE` / `VLLM_DP_SIZE`: scale across GPUs when needed
+- `VLLM_GPU_MEM_UTIL`: tune memory headroom vs throughput
+- `VLLM_ATTN_BACKEND`: choose backend explicitly for repeatability
+- `VLLM_LOG_FILE` or `VLLM_LOG_DIR`: preserve server logs for auditability
+- `VLLM_CACHE_PATH`: isolate Hugging Face cache location for reproducible infra setups
+
+For judge serving, the equivalent `VLLM_JUDGE_*` variables are supported.
+
+These scripts do **not** currently replicate the Docker-wrapper, custom chat-template, tool-parser, or reasoning-parser features from the reference script, because they are not necessary for the eval harness’s current research workflow.
+
+Or pass the judge model name as the first positional argument:
+
+```bash
+bash eval_harness/scripts/start_vllm_judge_server.sh Qwen/Qwen2.5-7B-Instruct
+```
+
+### Stop the servers
+
+- If running in the foreground: press `Ctrl+C`
+- If running under another process manager: stop it there
+- If launched in the background manually: use `ps` / `pkill -f vllm.entrypoints.openai.api_server` carefully
+
+### Use the running servers in evals
+
+For model generation:
+
+```bash
+python3 -m eval_harness.cli generate \
+  --backend vllm \
+  --model meta-llama/Llama-3.1-8B-Instruct \
+  --base-url http://localhost:8000/v1 \
+  --api-key dummy
+```
+
+For judge generation:
+
+```bash
+python3 -m eval_harness.cli judge \
+  --backend vllm \
+  --model meta-llama/Llama-3.1-8B-Instruct \
+  --base-url http://localhost:8000/v1 \
+  --api-key dummy \
+  --judge-backend vllm \
+  --judge-model Qwen/Qwen2.5-7B-Instruct \
+  --judge-base-url http://localhost:8001/v1 \
+  --judge-api-key dummy
+```
 
 Example:
 
@@ -162,11 +273,12 @@ python3 -m eval_harness.cli generate \
   --output-dir eval \
   --model-name llama-3.1-8b-instruct \
   --backend vllm \
-  --mode server \
   --model meta-llama/Llama-3.1-8B-Instruct \
   --base-url http://localhost:8000/v1 \
   --api-key dummy
 ```
+
+`--mode server` is optional because server mode is the default for `--backend vllm`.
 
 ### 3. Judge with API judge
 
@@ -194,16 +306,16 @@ python3 -m eval_harness.cli judge \
   --output-dir eval \
   --model-name llama-3.1-8b-instruct \
   --backend vllm \
-  --mode server \
   --model meta-llama/Llama-3.1-8B-Instruct \
   --judge-name qwen-judge \
   --judge-backend vllm \
-  --judge-mode server \
   --judge-model Qwen/Qwen2.5-7B-Instruct \
   --judge-base-url http://localhost:8001/v1 \
   --judge-api-key dummy \
   --judge-template-path eval_harness/prompts/judge_refusal.txt
 ```
+
+Both `--mode server` and `--judge-mode server` are optional because vLLM server mode is now the default.
 
 ### 5. End-to-end run
 
@@ -296,10 +408,11 @@ python3 -m eval_harness.cli validate-run \
 - Include/exclude filters for the same field must not overlap.
 - Judge prompting now uses a single prompt template source of truth: `eval_harness/prompts/judge_refusal.txt`.
 - `--judge-template-path` is optional; if omitted, the harness defaults to `eval_harness/prompts/judge_refusal.txt`.
+- For `--backend vllm` and `--judge-backend vllm`, omitted mode now defaults to `server`.
 - Local dependencies such as `openai`, `anthropic`, or `vllm` are loaded lazily at runtime.
 - Generation and judging write run manifests and status files under `eval/manifests/`.
 - Per-backend reliability controls include `--timeout-seconds`, `--max-retries`, `--retry-base-delay-seconds`, `--retry-max-delay-seconds`, and `--retry-jitter-seconds` plus judge-specific overrides.
-- Judge sampling can be overridden independently with `--judge-temperature` and `--judge-top-p`.
+- Judge sampling can be overridden independently with `--judge-temperature`, `--judge-top-p`, and `--judge-max-tokens`.
 - `validate-run` performs lightweight integrity checks on responses, judged outputs, and manifests before you trust a run for comparison.
 - `validate-run` exits non-zero on failure, so it can be used in CI or release checks.
 - `plan` is a non-executing preview step intended as an R1-safe workflow check before spending API or local inference time.
@@ -318,4 +431,4 @@ python3 -m eval_harness.cli validate-run \
 ## Current limitations
 
 - This is still an early harness: it now includes basic retry/backoff/timeout handling, but not provider-specific cost accounting or batch inference APIs.
-- Local `vllm` mode instantiates the engine inline and is best used for small/manual runs; server mode is the recommended default.
+- Local `vllm` mode now reuses a single in-process engine per backend instance, but server mode remains the recommended default for reproducibility and operations.

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from threading import Lock
 import time
 from typing import Optional
 
@@ -11,6 +12,21 @@ class VLLMBackend(InferenceBackend):
     def __init__(self, *, mode: str = "openai_compatible", **kwargs) -> None:
         super().__init__(**kwargs)
         self.mode = mode
+        self._local_llm = None
+        self._local_llm_lock = Lock()
+
+    def _get_local_llm(self):
+        if self._local_llm is not None:
+            return self._local_llm
+        with self._local_llm_lock:
+            if self._local_llm is not None:
+                return self._local_llm
+            try:
+                from vllm import LLM
+            except ImportError as exc:
+                raise RuntimeError("vllm package is required for local vLLM mode") from exc
+            self._local_llm = LLM(model=self.model)
+            return self._local_llm
 
     def _generate_once(self, prompt: str, system_prompt: Optional[str] = None) -> BackendResult:
         if self.mode == "openai_compatible":
@@ -32,11 +48,11 @@ class VLLMBackend(InferenceBackend):
 
         if self.mode == "local":
             try:
-                from vllm import LLM, SamplingParams
+                from vllm import SamplingParams
             except ImportError as exc:
                 raise RuntimeError("vllm package is required for local vLLM mode") from exc
             started_at = time.time()
-            llm = LLM(model=self.model)
+            llm = self._get_local_llm()
             full_prompt = prompt if not system_prompt else f"{system_prompt}\n\n{prompt}"
             outputs = llm.generate(
                 [full_prompt],

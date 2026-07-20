@@ -416,6 +416,16 @@ class EvalHarnessSmokeTests(unittest.TestCase):
         )
         self.assertEqual(vllm_server.resolved_backend_label, "vllm_openai")
 
+        vllm_default = ModelConfig(
+            name="vllm-default",
+            backend="vllm",
+            model="meta-llama/Llama-3.1-8B-Instruct",
+            api_key="dummy",
+            base_url="http://localhost:8000/v1",
+        )
+        self.assertEqual(vllm_default.mode, "server")
+        self.assertEqual(vllm_default.resolved_backend_label, "vllm_openai")
+
     def test_validate_run_cli_returns_nonzero_on_invalid_artifacts(self) -> None:
         with TemporaryDirectory() as tmp_dir:
             bad_responses = Path(tmp_dir) / "bad.jsonl"

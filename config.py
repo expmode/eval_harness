@@ -55,7 +55,7 @@ def _resolve_backend_identity(backend: str, provider: Optional[str], mode: Optio
         if provider_normalized is not None:
             raise ValueError("provider must not be set when backend=vllm")
         if mode_normalized is None:
-            mode_normalized = "local"
+            mode_normalized = "server"
         if mode_normalized not in SUPPORTED_VLLM_MODES:
             supported = ", ".join(sorted(SUPPORTED_VLLM_MODES))
             raise ValueError(f"Unsupported vllm mode: {mode}. Supported: {supported}")
@@ -83,7 +83,7 @@ class ModelConfig:
     system_prompt: Optional[str] = None
     temperature: float = 0.0
     top_p: float = 1.0
-    max_tokens: int = 512
+    max_tokens: int = 2048
     timeout_seconds: float = 60.0
     max_retries: int = 3
     retry_base_delay_seconds: float = 1.0

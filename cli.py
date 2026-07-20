@@ -14,6 +14,7 @@ from .run_specs import load_run_config
 from .validate import validate_run_artifacts
 
 DEFAULT_DATASET_PATH = "eval_harness/data/EU_alert_working_copy/test/test.jsonl"
+DEFAULT_JUDGE_TEMPLATE_PATH = "eval_harness/prompts/judge_refusal.txt"
 PACKAGE_ROOT = Path(__file__).resolve().parent
 REPO_ROOT = PACKAGE_ROOT.parent
 
@@ -75,14 +76,17 @@ def build_parser() -> argparse.ArgumentParser:
         subparser.add_argument("--model-name", help="Short name used to label the model in outputs.")
         subparser.add_argument("--backend", help="Backend type, for example 'api' or 'vllm'.")
         subparser.add_argument("--provider", help="API provider name, for example 'openai' or 'anthropic'.")
-        subparser.add_argument("--mode", help="Backend mode, for example 'local' or 'server'.")
+        subparser.add_argument(
+            "--mode",
+            help="Backend mode, for example 'local' or 'server'. For --backend vllm, defaults to 'server'.",
+        )
         subparser.add_argument("--model", help="Model identifier sent to the backend.")
         subparser.add_argument("--api-key", help="API key for the selected provider.")
         subparser.add_argument("--base-url", help="Base URL for OpenAI-compatible or server backends.")
         subparser.add_argument("--system-prompt", help="Optional system prompt to send with each generation request.")
         subparser.add_argument("--temperature", type=float, default=0.0, help="Sampling temperature for generation.")
         subparser.add_argument("--top-p", type=float, default=1.0, help="Top-p sampling value for generation.")
-        subparser.add_argument("--max-tokens", type=int, default=512, help="Maximum number of output tokens.")
+        subparser.add_argument("--max-tokens", type=int, default=2048, help="Maximum number of output tokens for model generation.")
         subparser.add_argument("--timeout-seconds", type=float, default=60.0, help="Request timeout in seconds.")
         subparser.add_argument("--max-retries", type=int, default=3, help="Maximum number of retries after transient failures.")
         subparser.add_argument("--retry-base-delay-seconds", type=float, default=1.0, help="Base delay in seconds before retrying.")
@@ -92,14 +96,25 @@ def build_parser() -> argparse.ArgumentParser:
             subparser.add_argument("--judge-name", help="Short name used to label the judge in outputs.")
             subparser.add_argument("--judge-backend", help="Judge backend type, for example 'api' or 'vllm'.")
             subparser.add_argument("--judge-provider", help="Judge API provider name.")
-            subparser.add_argument("--judge-mode", help="Judge backend mode, for example 'local' or 'server'.")
+            subparser.add_argument(
+                "--judge-mode",
+                help="Judge backend mode, for example 'local' or 'server'. For --judge-backend vllm, defaults to 'server'.",
+            )
             subparser.add_argument("--judge-model", help="Judge model identifier sent to the backend.")
             subparser.add_argument("--judge-api-key", help="API key for the judge provider.")
             subparser.add_argument("--judge-base-url", help="Base URL for an OpenAI-compatible judge backend.")
             subparser.add_argument("--judge-system-prompt", help="Optional system prompt for the judge.")
-            subparser.add_argument("--judge-template-path", help="Path to the prompt template used for judging.")
+            subparser.add_argument(
+                "--judge-template-path",
+                default=DEFAULT_JUDGE_TEMPLATE_PATH,
+                help=(
+                    "Path to the prompt template used for judging. "
+                    f"Defaults to {DEFAULT_JUDGE_TEMPLATE_PATH}."
+                ),
+            )
             subparser.add_argument("--judge-temperature", type=float, help="Sampling temperature for the judge.")
             subparser.add_argument("--judge-top-p", type=float, help="Top-p sampling value for the judge.")
+            subparser.add_argument("--judge-max-tokens", type=int, default=512, help="Maximum number of output tokens for judge generation.")
             subparser.add_argument("--judge-timeout-seconds", type=float, help="Judge request timeout in seconds.")
             subparser.add_argument("--judge-max-retries", type=int, help="Maximum number of judge retries.")
             subparser.add_argument("--judge-retry-base-delay-seconds", type=float, help="Base retry delay for judge requests.")
@@ -190,7 +205,7 @@ def _judge_config_from_args(args: argparse.Namespace) -> JudgeConfig:
         api_key=args.judge_api_key,
         base_url=args.judge_base_url,
         system_prompt=args.judge_system_prompt,
-        max_tokens=args.max_tokens,
+        max_tokens=args.judge_max_tokens,
         temperature=args.judge_temperature if args.judge_temperature is not None else args.temperature,
         top_p=args.judge_top_p if args.judge_top_p is not None else args.top_p,
         timeout_seconds=args.judge_timeout_seconds or args.timeout_seconds,
