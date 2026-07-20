@@ -38,6 +38,10 @@ eval/judged/
 eval/manifests/
 eval/stats/
 
+# Local dataset downloads
+data/
+eval_harness/data/
+
 # Local notebooks / temp files
 *.ipynb_checkpoints
 *.log

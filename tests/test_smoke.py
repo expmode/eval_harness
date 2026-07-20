@@ -18,7 +18,7 @@ from eval_harness.validate import validate_run_artifacts
 class EvalHarnessSmokeTests(unittest.TestCase):
     def setUp(self) -> None:
         self.repo_root = Path(__file__).resolve().parents[2]
-        self.dataset_path = self.repo_root / "EU_alert_working_copy" / "test" / "test.jsonl"
+        self.dataset_path = self.repo_root / "eval_harness" / "data" / "EU_alert_working_copy" / "test" / "test.jsonl"
         self.judge_template_path = self.repo_root / "eval_harness" / "prompts" / "judge_refusal.txt"
 
     def test_dataset_summary_and_filters(self) -> None:

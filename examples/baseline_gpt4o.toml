@@ -1,4 +1,4 @@
-dataset_path = "EU_alert_working_copy/test/test.jsonl"
+dataset_path = "eval_harness/data/EU_alert_working_copy/test/test.jsonl"
 output_dir = "eval"
 run_name = "baseline_gpt4o"
 verified_only = false

@@ -1,4 +1,4 @@
-"""EU-Guard evaluation harness for Track 1 benchmark evaluation."""
+"""EU-Guard evaluation harness for running model evaluations."""
 
 from .config import JudgeConfig, ModelConfig, RunConfig
 from .validate import validate_run_artifacts

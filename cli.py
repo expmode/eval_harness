@@ -13,87 +13,137 @@ from .metrics import score_judged_file
 from .run_specs import load_run_config
 from .validate import validate_run_artifacts
 
+DEFAULT_DATASET_PATH = "eval_harness/data/EU_alert_working_copy/test/test.jsonl"
+PACKAGE_ROOT = Path(__file__).resolve().parent
+REPO_ROOT = PACKAGE_ROOT.parent
+
+
+def _resolve_default_dataset_path(dataset_path: str | Path) -> Path:
+    path = Path(dataset_path)
+    if path.is_absolute() or path.exists():
+        return path
+
+    candidates = [
+        REPO_ROOT / path,
+        PACKAGE_ROOT / path,
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return path
+
+
+def _display_dataset_path(dataset_path: Path) -> str:
+    for base in (REPO_ROOT, PACKAGE_ROOT):
+        try:
+            return str(dataset_path.relative_to(base))
+        except ValueError:
+            continue
+    return str(dataset_path)
+
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="EU-Guard Track 1 evaluation harness")
+    parser = argparse.ArgumentParser(
+        description="Run model evaluations, judging, scoring, and validation for EU-Guard."
+    )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     def add_common_args(subparser: argparse.ArgumentParser, *, include_judge: bool = False) -> None:
-        subparser.add_argument("--dataset-path", default="EU_alert_working_copy/test/test.jsonl")
-        subparser.add_argument("--output-dir", default="eval")
-        subparser.add_argument("--config")
-        subparser.add_argument("--alias-file")
-        subparser.add_argument("--limit", type=int)
-        subparser.add_argument("--random-sample", type=int)
-        subparser.add_argument("--sampling-seed", type=int, default=0)
-        subparser.add_argument("--concurrency", type=int, default=8)
-        subparser.add_argument("--verified-only", action="store_true")
-        subparser.add_argument("--overwrite", action="store_true")
-        subparser.add_argument("--run-name")
-        subparser.add_argument("--language-include", action="append", default=[])
-        subparser.add_argument("--language-exclude", action="append", default=[])
-        subparser.add_argument("--category-include", action="append", default=[])
-        subparser.add_argument("--category-exclude", action="append", default=[])
-        subparser.add_argument("--model-name")
-        subparser.add_argument("--backend")
-        subparser.add_argument("--provider")
-        subparser.add_argument("--mode")
-        subparser.add_argument("--model")
-        subparser.add_argument("--api-key")
-        subparser.add_argument("--base-url")
-        subparser.add_argument("--system-prompt")
-        subparser.add_argument("--temperature", type=float, default=0.0)
-        subparser.add_argument("--top-p", type=float, default=1.0)
-        subparser.add_argument("--max-tokens", type=int, default=512)
-        subparser.add_argument("--timeout-seconds", type=float, default=60.0)
-        subparser.add_argument("--max-retries", type=int, default=3)
-        subparser.add_argument("--retry-base-delay-seconds", type=float, default=1.0)
-        subparser.add_argument("--retry-max-delay-seconds", type=float, default=8.0)
-        subparser.add_argument("--retry-jitter-seconds", type=float, default=0.25)
+        subparser.add_argument(
+            "--dataset-path",
+            default=DEFAULT_DATASET_PATH,
+            help="Path to the dataset file to evaluate.",
+        )
+        subparser.add_argument("--output-dir", default="eval", help="Folder where outputs will be written.")
+        subparser.add_argument("--config", help="Path to a JSON or TOML run config file.")
+        subparser.add_argument("--alias-file", help="Path to an alias registry file used by the config.")
+        subparser.add_argument("--limit", type=int, help="Run only the first N dataset rows after filtering.")
+        subparser.add_argument("--random-sample", type=int, help="Randomly sample N rows instead of using all rows.")
+        subparser.add_argument("--sampling-seed", type=int, default=0, help="Random seed for sampling.")
+        subparser.add_argument("--concurrency", type=int, default=8, help="Number of requests to run in parallel.")
+        subparser.add_argument(
+            "--verified-only",
+            action="store_true",
+            help="Use only rows that are not marked as machine translated.",
+        )
+        subparser.add_argument("--overwrite", action="store_true", help="Overwrite existing outputs instead of resuming.")
+        subparser.add_argument("--run-name", help="Custom name for this run.")
+        subparser.add_argument("--language-include", action="append", default=[], help="Only include these languages. Repeat to add more.")
+        subparser.add_argument("--language-exclude", action="append", default=[], help="Exclude these languages. Repeat to add more.")
+        subparser.add_argument("--category-include", action="append", default=[], help="Only include these categories. Repeat to add more.")
+        subparser.add_argument("--category-exclude", action="append", default=[], help="Exclude these categories. Repeat to add more.")
+        subparser.add_argument("--model-name", help="Short name used to label the model in outputs.")
+        subparser.add_argument("--backend", help="Backend type, for example 'api' or 'vllm'.")
+        subparser.add_argument("--provider", help="API provider name, for example 'openai' or 'anthropic'.")
+        subparser.add_argument("--mode", help="Backend mode, for example 'local' or 'server'.")
+        subparser.add_argument("--model", help="Model identifier sent to the backend.")
+        subparser.add_argument("--api-key", help="API key for the selected provider.")
+        subparser.add_argument("--base-url", help="Base URL for OpenAI-compatible or server backends.")
+        subparser.add_argument("--system-prompt", help="Optional system prompt to send with each generation request.")
+        subparser.add_argument("--temperature", type=float, default=0.0, help="Sampling temperature for generation.")
+        subparser.add_argument("--top-p", type=float, default=1.0, help="Top-p sampling value for generation.")
+        subparser.add_argument("--max-tokens", type=int, default=512, help="Maximum number of output tokens.")
+        subparser.add_argument("--timeout-seconds", type=float, default=60.0, help="Request timeout in seconds.")
+        subparser.add_argument("--max-retries", type=int, default=3, help="Maximum number of retries after transient failures.")
+        subparser.add_argument("--retry-base-delay-seconds", type=float, default=1.0, help="Base delay in seconds before retrying.")
+        subparser.add_argument("--retry-max-delay-seconds", type=float, default=8.0, help="Maximum delay in seconds between retries.")
+        subparser.add_argument("--retry-jitter-seconds", type=float, default=0.25, help="Random jitter added to retry delays.")
         if include_judge:
-            subparser.add_argument("--judge-name")
-            subparser.add_argument("--judge-backend")
-            subparser.add_argument("--judge-provider")
-            subparser.add_argument("--judge-mode")
-            subparser.add_argument("--judge-model")
-            subparser.add_argument("--judge-api-key")
-            subparser.add_argument("--judge-base-url")
-            subparser.add_argument("--judge-system-prompt")
-            subparser.add_argument("--judge-template-path")
-            subparser.add_argument("--judge-temperature", type=float)
-            subparser.add_argument("--judge-top-p", type=float)
-            subparser.add_argument("--judge-timeout-seconds", type=float)
-            subparser.add_argument("--judge-max-retries", type=int)
-            subparser.add_argument("--judge-retry-base-delay-seconds", type=float)
-            subparser.add_argument("--judge-retry-max-delay-seconds", type=float)
-            subparser.add_argument("--judge-retry-jitter-seconds", type=float)
+            subparser.add_argument("--judge-name", help="Short name used to label the judge in outputs.")
+            subparser.add_argument("--judge-backend", help="Judge backend type, for example 'api' or 'vllm'.")
+            subparser.add_argument("--judge-provider", help="Judge API provider name.")
+            subparser.add_argument("--judge-mode", help="Judge backend mode, for example 'local' or 'server'.")
+            subparser.add_argument("--judge-model", help="Judge model identifier sent to the backend.")
+            subparser.add_argument("--judge-api-key", help="API key for the judge provider.")
+            subparser.add_argument("--judge-base-url", help="Base URL for an OpenAI-compatible judge backend.")
+            subparser.add_argument("--judge-system-prompt", help="Optional system prompt for the judge.")
+            subparser.add_argument("--judge-template-path", help="Path to the prompt template used for judging.")
+            subparser.add_argument("--judge-temperature", type=float, help="Sampling temperature for the judge.")
+            subparser.add_argument("--judge-top-p", type=float, help="Top-p sampling value for the judge.")
+            subparser.add_argument("--judge-timeout-seconds", type=float, help="Judge request timeout in seconds.")
+            subparser.add_argument("--judge-max-retries", type=int, help="Maximum number of judge retries.")
+            subparser.add_argument("--judge-retry-base-delay-seconds", type=float, help="Base retry delay for judge requests.")
+            subparser.add_argument("--judge-retry-max-delay-seconds", type=float, help="Maximum retry delay for judge requests.")
+            subparser.add_argument("--judge-retry-jitter-seconds", type=float, help="Random jitter added to judge retry delays.")
 
-    add_common_args(subparsers.add_parser("generate"))
-    add_common_args(subparsers.add_parser("judge"), include_judge=True)
-    add_common_args(subparsers.add_parser("run-all"), include_judge=True)
-    add_common_args(subparsers.add_parser("plan"), include_judge=True)
+    add_common_args(subparsers.add_parser("generate", help="Generate model responses for a dataset slice.", description="Generate model responses and write them to a JSONL file."))
+    add_common_args(subparsers.add_parser("judge", help="Judge existing model responses.", description="Read saved responses, ask a judge model if each one refused or complied, and write judged outputs."), include_judge=True)
+    add_common_args(subparsers.add_parser("run-all", help="Run generation, judging, and scoring in one command.", description="Run the full evaluation pipeline: generate responses, judge them, and score the results."), include_judge=True)
+    add_common_args(subparsers.add_parser("plan", help="Preview what a run would do without calling any model.", description="Show dataset size, output paths, and pending work before you run generation or judging."), include_judge=True)
 
-    dataset_parser = subparsers.add_parser("dataset-summary")
-    dataset_parser.add_argument("--dataset-path", default="EU_alert_working_copy/test/test.jsonl")
-    dataset_parser.add_argument("--limit", type=int)
-    dataset_parser.add_argument("--random-sample", type=int)
-    dataset_parser.add_argument("--sampling-seed", type=int, default=0)
-    dataset_parser.add_argument("--verified-only", action="store_true")
-    dataset_parser.add_argument("--language-include", action="append", default=[])
-    dataset_parser.add_argument("--language-exclude", action="append", default=[])
-    dataset_parser.add_argument("--category-include", action="append", default=[])
-    dataset_parser.add_argument("--category-exclude", action="append", default=[])
+    dataset_parser = subparsers.add_parser(
+        "dataset-summary",
+        help="Show a summary of a dataset slice.",
+        description="Preview how many rows will be used after filters and sampling are applied.",
+    )
+    dataset_parser.add_argument("--dataset-path", default=DEFAULT_DATASET_PATH, help="Path to the dataset file.")
+    dataset_parser.add_argument("--limit", type=int, help="Use only the first N rows after filtering.")
+    dataset_parser.add_argument("--random-sample", type=int, help="Randomly sample N rows.")
+    dataset_parser.add_argument("--sampling-seed", type=int, default=0, help="Random seed for sampling.")
+    dataset_parser.add_argument("--verified-only", action="store_true", help="Use only rows that are not machine translated.")
+    dataset_parser.add_argument("--language-include", action="append", default=[], help="Only include these languages. Repeat to add more.")
+    dataset_parser.add_argument("--language-exclude", action="append", default=[], help="Exclude these languages. Repeat to add more.")
+    dataset_parser.add_argument("--category-include", action="append", default=[], help="Only include these categories. Repeat to add more.")
+    dataset_parser.add_argument("--category-exclude", action="append", default=[], help="Exclude these categories. Repeat to add more.")
 
-    score_parser = subparsers.add_parser("score")
-    score_parser.add_argument("--judged-path", required=True)
-    score_parser.add_argument("--output-dir", default="eval")
-    score_parser.add_argument("--run-stem", required=True)
+    score_parser = subparsers.add_parser(
+        "score",
+        help="Score a judged JSONL file and write reports.",
+        description="Compute metrics from a judged file and write JSON and CSV reports.",
+    )
+    score_parser.add_argument("--judged-path", required=True, help="Path to the judged JSONL file.")
+    score_parser.add_argument("--output-dir", default="eval", help="Folder where score outputs will be written.")
+    score_parser.add_argument("--run-stem", required=True, help="Base name used for the output report files.")
 
-    validate_parser = subparsers.add_parser("validate-run")
-    validate_parser.add_argument("--responses-path")
-    validate_parser.add_argument("--judged-path")
-    validate_parser.add_argument("--generation-manifest-path")
-    validate_parser.add_argument("--judging-manifest-path")
+    validate_parser = subparsers.add_parser(
+        "validate-run",
+        help="Check that run outputs and manifests are consistent.",
+        description="Run lightweight checks on responses, judged outputs, and manifest files.",
+    )
+    validate_parser.add_argument("--responses-path", help="Path to the generated responses JSONL file.")
+    validate_parser.add_argument("--judged-path", help="Path to the judged JSONL file.")
+    validate_parser.add_argument("--generation-manifest-path", help="Path to the generation manifest JSON file.")
+    validate_parser.add_argument("--judging-manifest-path", help="Path to the judging manifest JSON file.")
 
     for parser_with_slicing in [
         subparsers.choices["generate"],
@@ -102,8 +152,8 @@ def build_parser() -> argparse.ArgumentParser:
         dataset_parser,
     ]:
         parser_with_slicing.epilog = (
-            "Slicing note: --limit and --random-sample are mutually exclusive. "
-            "Include/exclude filters must not overlap."
+            "Notes: --limit and --random-sample cannot be used together. "
+            "Do not include and exclude the same language or category."
         )
 
     return parser
@@ -185,7 +235,7 @@ def _run_config_from_args(args: argparse.Namespace, include_judge: bool = False)
     if include_judge and (not args.judge_name or not args.judge_backend or not args.judge_model):
         raise ValueError("Without --config, --judge-name, --judge-backend, and --judge-model are required")
     return RunConfig(
-        dataset_path=Path(args.dataset_path),
+        dataset_path=_resolve_default_dataset_path(args.dataset_path),
         output_dir=Path(args.output_dir),
         limit=args.limit,
         concurrency=args.concurrency,
@@ -237,8 +287,9 @@ def main() -> None:
         return
 
     if args.command == "dataset-summary":
+        resolved_dataset_path = _resolve_default_dataset_path(args.dataset_path)
         config = RunConfig(
-            dataset_path=Path(args.dataset_path),
+            dataset_path=resolved_dataset_path,
             limit=args.limit,
             verified_only=args.verified_only,
             language_include=tuple(args.language_include),
@@ -248,7 +299,9 @@ def main() -> None:
             random_sample=args.random_sample,
             sampling_seed=args.sampling_seed,
         )
-        print(json.dumps(summarize_dataset(config), indent=2, ensure_ascii=False))
+        payload = summarize_dataset(config)
+        payload["dataset_path"] = _display_dataset_path(resolved_dataset_path)
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
         return
 
     if args.command == "validate-run":

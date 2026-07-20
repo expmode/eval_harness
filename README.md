@@ -1,6 +1,6 @@
 # EU-Guard Eval Harness
 
-Track 1 evaluation scaffold for:
+Evaluation scaffold for:
 - **generation via API backends**
 - **generation via vLLM**
 - **LLM-as-a-Judge scoring** with both **API judges** and **open-source judges**
@@ -25,6 +25,59 @@ The same backend abstraction is used for both the model under test and the judge
 
 ## Installation
 
+This repo can now be used as a Python project via `uv` or standard `pip`.
+
+## Dataset setup
+
+The eval harness expects the benchmark data under:
+
+```text
+eval_harness/data/EU_alert_working_copy/test/test.jsonl
+```
+
+Create the local data directory and download the gated dataset from Hugging Face:
+
+```bash
+mkdir -p data
+git lfs install
+mkdir -p eval_harness/data
+git clone https://huggingface.co/datasets/EU-Guard/EU_alert_working_copy eval_harness/data/EU_alert_working_copy
+```
+
+Notes:
+
+- You must have access to the gated dataset before cloning it.
+- If needed, log in first with `huggingface-cli login`.
+- The default CLI dataset path now points to `eval_harness/data/EU_alert_working_copy/test/test.jsonl`.
+
+### Using uv
+
+Install core dependencies:
+
+```bash
+uv sync
+```
+
+Install with local vLLM support:
+
+```bash
+uv sync --extra vllm
+```
+
+Install with developer tooling:
+
+```bash
+uv sync --extra dev
+```
+
+Run the CLI through uv:
+
+```bash
+uv run eval-harness --help
+```
+
+### Using pip
+
 Minimum runtime dependencies depend on backend choice:
 
 - `openai` package for `--backend api --provider openai|together|openrouter`
@@ -34,7 +87,7 @@ Minimum runtime dependencies depend on backend choice:
 Example:
 
 ```bash
-python3 -m pip install openai anthropic
+python3 -m pip install -r requirements.txt
 ```
 
 ## R1-ready behavior in this scaffold
@@ -91,7 +144,7 @@ eval/
 
 ```bash
 python3 -m eval_harness.cli generate \
-  --dataset-path EU_alert_working_copy/test/test.jsonl \
+  --dataset-path eval_harness/data/EU_alert_working_copy/test/test.jsonl \
   --output-dir eval \
   --model-name gpt-4o \
   --backend api \
@@ -105,7 +158,7 @@ python3 -m eval_harness.cli generate \
 
 ```bash
 python3 -m eval_harness.cli generate \
-  --dataset-path EU_alert_working_copy/test/test.jsonl \
+  --dataset-path eval_harness/data/EU_alert_working_copy/test/test.jsonl \
   --output-dir eval \
   --model-name llama-3.1-8b-instruct \
   --backend vllm \
@@ -119,7 +172,7 @@ python3 -m eval_harness.cli generate \
 
 ```bash
 python3 -m eval_harness.cli judge \
-  --dataset-path EU_alert_working_copy/test/test.jsonl \
+  --dataset-path eval_harness/data/EU_alert_working_copy/test/test.jsonl \
   --output-dir eval \
   --model-name gpt-4o \
   --backend api \
@@ -137,7 +190,7 @@ python3 -m eval_harness.cli judge \
 
 ```bash
 python3 -m eval_harness.cli judge \
-  --dataset-path EU_alert_working_copy/test/test.jsonl \
+  --dataset-path eval_harness/data/EU_alert_working_copy/test/test.jsonl \
   --output-dir eval \
   --model-name llama-3.1-8b-instruct \
   --backend vllm \
@@ -156,7 +209,7 @@ python3 -m eval_harness.cli judge \
 
 ```bash
 python3 -m eval_harness.cli run-all \
-  --dataset-path EU_alert_working_copy/test/test.jsonl \
+  --dataset-path eval_harness/data/EU_alert_working_copy/test/test.jsonl \
   --output-dir eval \
   --model-name gpt-4o \
   --backend api \
@@ -182,7 +235,7 @@ You can use **OpenRouter** via:
 
 ```bash
 python3 -m eval_harness.cli plan \
-  --dataset-path EU_alert_working_copy/test/test.jsonl \
+  --dataset-path eval_harness/data/EU_alert_working_copy/test/test.jsonl \
   --output-dir eval \
   --model-name gpt-4o \
   --backend api \
@@ -217,7 +270,7 @@ python3 -m eval_harness.cli score \
 
 ```bash
 python3 -m eval_harness.cli dataset-summary \
-  --dataset-path EU_alert_working_copy/test/test.jsonl \
+  --dataset-path eval_harness/data/EU_alert_working_copy/test/test.jsonl \
   --verified-only \
   --language-include english \
   --limit 20
@@ -236,6 +289,7 @@ python3 -m eval_harness.cli validate-run \
 ## Notes
 
 - Responses and judge outputs are **resumable** by `row_id`.
+- By default, the harness looks for the dataset at `eval_harness/data/EU_alert_working_copy/test/test.jsonl`.
 - `--verified-only` filters to `is_machine_translation=false` rows.
 - Dataset slicing also supports `--language-include`, `--language-exclude`, `--category-include`, `--category-exclude`, `--random-sample`, and `--sampling-seed`.
 - `--limit` and `--random-sample` are mutually exclusive.

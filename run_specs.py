@@ -144,7 +144,7 @@ def load_run_config(
             judge_payload,
         )
 
-    dataset_path = Path(str(cli_overrides.get("dataset_path") or payload.get("dataset_path") or "EU_alert_working_copy/test/test.jsonl"))
+    dataset_path = Path(str(cli_overrides.get("dataset_path") or payload.get("dataset_path") or "eval_harness/data/EU_alert_working_copy/test/test.jsonl"))
     output_dir = Path(str(cli_overrides.get("output_dir") or payload.get("output_dir") or "eval"))
 
     extra_metadata = dict(payload.get("notes", {})) if isinstance(payload.get("notes"), dict) else {}
