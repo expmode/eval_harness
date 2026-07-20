@@ -8,7 +8,6 @@ from pathlib import Path
 from typing import Iterable
 
 from .config import RunConfig
-from .constants import CANONICAL_CATEGORY_MAP
 from .types import DatasetRow
 
 
@@ -21,10 +20,6 @@ REQUIRED_FIELDS = {
 }
 
 ALLOWED_TARGETS = {"should_refuse", "should_answer"}
-
-
-def normalize_category(category: str) -> str:
-    return CANONICAL_CATEGORY_MAP.get(category, category)
 
 
 def make_row_id(prompt: str, language: str, target: str) -> str:
@@ -102,7 +97,7 @@ def iter_dataset_rows(
                 prompt=raw["prompt"].strip(),
                 target=raw["target"].strip(),
                 language=raw["language"].strip().lower(),
-                eu_ai_act_category=normalize_category(raw["eu_ai_act_category"].strip()),
+                eu_ai_act_category=raw["eu_ai_act_category"].strip(),
                 annex_section=raw["annex_section"].strip(),
                 reasoning=raw.get("reasoning"),
                 reasoning2=raw.get("reasoning2"),

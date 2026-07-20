@@ -294,7 +294,8 @@ python3 -m eval_harness.cli validate-run \
 - Dataset slicing also supports `--language-include`, `--language-exclude`, `--category-include`, `--category-exclude`, `--random-sample`, and `--sampling-seed`.
 - `--limit` and `--random-sample` are mutually exclusive.
 - Include/exclude filters for the same field must not overlap.
-- Category label noise is normalized during dataset loading.
+- Judge prompting now uses a single prompt template source of truth: `eval_harness/prompts/judge_refusal.txt`.
+- `--judge-template-path` is optional; if omitted, the harness defaults to `eval_harness/prompts/judge_refusal.txt`.
 - Local dependencies such as `openai`, `anthropic`, or `vllm` are loaded lazily at runtime.
 - Generation and judging write run manifests and status files under `eval/manifests/`.
 - Per-backend reliability controls include `--timeout-seconds`, `--max-retries`, `--retry-base-delay-seconds`, `--retry-max-delay-seconds`, and `--retry-jitter-seconds` plus judge-specific overrides.
